@@ -20,6 +20,15 @@ Parameters:
     Type: String
   SshPort:
     Type: String
+  VPCCidr:
+    Type: String
+    AllowedPattern: "\\d+\\.\\d+\\.\\d+\\.\\d+/\\d+"
+  SubnetACidr:
+    Type: String
+    AllowedPattern: "\\d+\\.\\d+\\.\\d+\\.\\d+/\\d+"
+  SubnetBCidr:
+    Type: String
+    AllowedPattern: "\\d+\\.\\d+\\.\\d+\\.\\d+/\\d+"
 Conditions:
   AllocateNewEIP: !Equals [!Ref UseThisElasticIP, '']
   AssociateExistingEIP: !Not [!Equals [!Ref UseThisElasticIP, '']]
@@ -27,7 +36,7 @@ Resources:
   VPC:
     Type: AWS::EC2::VPC
     Properties:
-      CidrBlock: 172.16.0.0/16
+      CidrBlock: !Ref VPCCidr
       EnableDnsSupport: true
       EnableDnsHostnames: true
       InstanceTenancy: default
@@ -35,25 +44,9 @@ Resources:
         - Key: Name
           Value: !Ref AWS::StackName
 
-  VPCIPv6:
-    Type: AWS::EC2::VPCCidrBlock
-    Properties:
-      AmazonProvidedIpv6CidrBlock: true
-      VpcId: !Ref VPC
-
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
-      Tags:
-        - Key: Name
-          Value: !Ref AWS::StackName
-
-  Subnet:
-    Type: AWS::EC2::Subnet
-    Properties:
-      CidrBlock: 172.16.254.0/23
-      MapPublicIpOnLaunch: false
-      VpcId: !Ref VPC
       Tags:
         - Key: Name
           Value: !Ref AWS::StackName
@@ -64,7 +57,27 @@ Resources:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref InternetGateway
 
-  RouteTable:
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref SubnetACidr
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+  SubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref SubnetBCidr
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+  RouteTableA:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
@@ -72,56 +85,51 @@ Resources:
         - Key: Name
           Value: !Ref AWS::StackName
 
-  Route:
+  RouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+  RouteA:
     Type: AWS::EC2::Route
     DependsOn:
       - InternetGateway
-      - RouteTable
+      - RouteTableA
       - VPCGatewayAttachment
     Properties:
-      RouteTableId: !Ref RouteTable
+      RouteTableId: !Ref RouteTableA
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
 
-  RouteIPv6:
+  RouteB:
     Type: AWS::EC2::Route
     DependsOn:
       - InternetGateway
-      - RouteTable
+      - RouteTableB
       - VPCGatewayAttachment
     Properties:
-      RouteTableId: !Ref RouteTable
-      DestinationIpv6CidrBlock: "::/0"
+      RouteTableId: !Ref RouteTableB
+      DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
 
-  SubnetIPv6:
-    Type: AWS::EC2::SubnetCidrBlock
-    DependsOn:
-      - RouteIPv6
-      - VPC
-      - VPCIPv6
-    Properties:
-      Ipv6CidrBlock:
-        "Fn::Join":
-            - ""
-            - - !Select [0, !Split [ "::", !Select [0, !GetAtt VPC.Ipv6CidrBlocks] ]]
-              - "::dead:beef/64"
-      SubnetId: !Ref Subnet
-
-  RouteSubnet:
+  RouteSubnetA:
     Type: "AWS::EC2::SubnetRouteTableAssociation"
     DependsOn:
-      - RouteTable
-      - Subnet
-      - Route
+      - RouteTableA
+      - SubnetA
+      - RouteA
     Properties:
-      RouteTableId: !Ref RouteTable
-      SubnetId: !Ref Subnet
+      RouteTableId: !Ref RouteTableA
+      SubnetId: !Ref SubnetA
 
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     DependsOn:
-      - Subnet
+      - SubnetA
+      - SubnetB
     Properties:
       VpcId: !Ref VPC
       GroupDescription: Enable SSH and IPsec
@@ -149,8 +157,7 @@ Resources:
   EC2Instance:
     Type: AWS::EC2::Instance
     DependsOn:
-      - SubnetIPv6
-      - Subnet
+      - SubnetA
       - InstanceSecurityGroup
     Properties:
       InstanceType:
@@ -166,8 +173,7 @@ Resources:
         - Ref: InstanceSecurityGroup
       ImageId:
         Ref: ImageIdParameter
-      SubnetId: !Ref Subnet
-      Ipv6AddressCount: 1
+      SubnetId: !Ref SubnetA
       UserData: !Ref UserData
       Tags:
         - Key: Name
@@ -189,7 +195,6 @@ Resources:
     Properties:
       AllocationId: !Ref UseThisElasticIP
       InstanceId: !Ref EC2Instance
-
 
 Outputs:
   ElasticIP:

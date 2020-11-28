@@ -1,6 +1,7 @@
 ---
 encrypted: "{{ cloud_providers.ec2.encrypted }}"
 ec2_vpc_nets:
-  cidr_block: 172.16.0.0/16
-  subnet_cidr: 172.16.254.0/23
+  vpc_cidr: "{{ lookup('env', 'ALGO_VPC_CIDR') }}"
+  subnet_a_cidr: "{{ lookup('env', 'ALGO_SUBNET_A_CIDR') }}"
+  subnet_b_cidr: "{{ lookup('env', 'ALGO_SUBNET_B_CIDR') }}"
 existing_eip: ""

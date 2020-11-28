@@ -16,6 +16,9 @@
       EbsEncrypted: "{{ encrypted }}"
       UserData: "{{ lookup('template', 'files/cloud-init/base.yml') | b64encode }}"
       SshPort: "{{ ssh_port }}"
+      VPCCidr: "{{ lookup('env', 'ALGO_VPC_CIDR') }}"
+      SubnetACidr: "{{ lookup('env', 'ALGO_SUBNET_A_CIDR') }}"
+      SubnetBCidr: "{{ lookup('env', 'ALGO_SUBNET_B_CIDR') }}"
     tags:
       Environment: Algo
   register: stack
