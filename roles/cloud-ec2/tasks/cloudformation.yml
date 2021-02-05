@@ -8,7 +8,8 @@
     region: "{{ algo_region }}"
     template: roles/cloud-ec2/files/stack.yaml
     template_parameters:
-      InstanceTypeParameter: "{{ cloud_providers.ec2.size }}"
+      CodeName: "{{ lookup('env', 'CODENAME') }}"
+      InstanceTypeParameter: "{{ lookup('env', 'INSTANCE_TYPE') }}"
       PublicSSHKeyParameter: "{{ lookup('file', SSH_keys.public) }}"
       ImageIdParameter: "{{ ami_image }}"
       WireGuardPort: "{{ wireguard_port }}"

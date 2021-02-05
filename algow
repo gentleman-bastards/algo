@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Validate that all necessary env variables are set
+if [ -z "${SARANETH_CODENAME}" ]; then
+  echo >&2 'ERROR: Missing required variable: SARANETH_CODENAME'
+  exit 1
+fi
+if [ -z "${AWS_REGION}" ]; then
+  echo >&2 'ERROR: Missing required variable: AWS_REGION'
+  exit 1
+fi
+if [ -z "${AWS_ACCESS_KEY}" ]; then
+  echo >&2 'ERROR: Missing required variable: AWS_ACCESS_KEY'
+  exit 1
+fi
+if [ -z "${AWS_SECRET_KEY}" ]; then
+  echo >&2 'ERROR: Missing required variable: AWS_SECRET_KEY'
+  exit 1
+fi
+if [ -z "${ALGO_VPC_CIDR}" ]; then
+  echo >&2 'ERROR: Missing required variable: ALGO_VPC_CIDR'
+  exit 1
+fi
+if [ -z "${ALGO_SUBNET_A_CIDR}" ]; then
+  echo >&2 'ERROR: Missing required variable: ALGO_SUBNET_A_CIDR'
+  exit 1
+fi
+if [ -z "${ALGO_SUBNET_B_CIDR}" ]; then
+  echo >&2 'ERROR: Missing required variable: ALGO_SUBNET_B_CIDR'
+  exit 1
+fi
+
+# Create the config directory, if it doesn't already exist
+if [ ! -d '~/.config/saraneth' ]; then
+  mkdir -p '~/.config/saraneth'
+fi
+
+# Create virtualenv if it doesn't exist
+if [ ! -d '~/.config/saraneth/venv' ]; then
+  python3 -m virtualenv --python="$(command -v python3)" ~/.config/saraneth/venv
+fi
+
+# Active virtualenv; install dependencies
+source ~/.config/saraneth/venv/bin/activate
+python3 -m pip install -U pip virtualenv
+python3 -m pip install -r requirements.txt
+
+# Delegate to ansible playbook
+# TODO: make more of these values configurable
+ansible-playbook main.yml \
+  -e provider=ec2 \
+  -e server_name="saraneth-${SARANETH_CODENAME}" \
+  -e ondemand_cellular=false \
+  -e ondemand_wifi=false \
+  -e dns_adblocking=true \
+  -e ssh_tunneling=false \
+  -e store_pki=false \
+  -e region="${AWS_REGION}" \
+  -e aws_access_key="${AWS_ACCESS_KEY}" \
+  -e aws_secret_key="${AWS_SECRET_KEY}"

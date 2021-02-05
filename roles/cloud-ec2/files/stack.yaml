@@ -2,9 +2,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Algo VPN stack'
 Parameters:
+  CodeName:
+    Type: String
   InstanceTypeParameter:
     Type: String
-    Default: t2.micro
+    Default: t3.micro
   PublicSSHKeyParameter:
     Type: String
   ImageIdParameter:
@@ -168,16 +170,23 @@ Resources:
             DeleteOnTermination: true
             VolumeSize: 8
             Encrypted: !Ref EbsEncrypted
+      NetworkInterfaces:
+        - DeviceIndex: '0'
+          NetworkInterfaceId: !Ref ENI
       InstanceInitiatedShutdownBehavior: terminate
-      SecurityGroupIds:
-        - Ref: InstanceSecurityGroup
       ImageId:
         Ref: ImageIdParameter
-      SubnetId: !Ref SubnetA
       UserData: !Ref UserData
       Tags:
         - Key: Name
           Value: !Ref AWS::StackName
+
+  ENI:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      SubnetId: !Ref SubnetA
+      GroupSet:
+        - !Ref InstanceSecurityGroup
 
   ElasticIP:
     Type: AWS::EC2::EIP
@@ -195,6 +204,55 @@ Resources:
     Properties:
       AllocationId: !Ref UseThisElasticIP
       InstanceId: !Ref EC2Instance
+
+  PeeringConnection:
+    Type: AWS::EC2::VPCPeeringConnection
+    Properties:
+      VpcId: !Ref VPC
+      PeerVpcId: !ImportValue 'saraneth-core-vpcid'
+
+  PeeringAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PeeringRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTableA
+      DestinationCidrBlock: !ImportValue 'saraneth-core-vpc-cidr'
+      VpcPeeringConnectionId: !Ref PeeringConnection
+
+  InversePeeringRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !ImportValue 'saraneth-core-pub-route-table'
+      DestinationCidrBlock: !Ref VPCCidr
+      VpcPeeringConnectionId: !Ref PeeringConnection
+
+  PeeringRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTableB
+      DestinationCidrBlock: !ImportValue 'saraneth-core-vpc-cidr'
+      VpcPeeringConnectionId: !Ref PeeringConnection
+
+  InversePeeringRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !ImportValue 'saraneth-core-priv-route-table'
+      DestinationCidrBlock: !Ref VPCCidr
+      VpcPeeringConnectionId: !Ref PeeringConnection
+
+  CollectorTrafficMirrorSession:
+    Type: 'AWS::EC2::TrafficMirrorSession'
+    DependsOn: EC2Instance
+    Properties:
+      NetworkInterfaceId: !Ref ENI
+      TrafficMirrorTargetId: !ImportValue 'saraneth-core-mirror-target-id'
+      TrafficMirrorFilterId: !ImportValue 'saraneth-core-mirror-filter-id'
+      SessionNumber: 1
 
 Outputs:
   ElasticIP:
